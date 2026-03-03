@@ -3,145 +3,113 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nasi Lemak Intel</title>
+    <title>Nasi Lemak Intel - Admin Mode</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: -apple-system, sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; }
         #map { flex-grow: 1; width: 100%; }
-        .controls { padding: 15px; background: #fff; border-top: 2px solid #ddd; z-index: 1000; }
-        .custom-tooltip { background: #d35400; color: #fff; border: none; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-        .btn-locate { background: #007AFF; color: white; border: none; padding: 10px; border-radius: 5px; width: 100%; margin-bottom: 10px; font-weight: bold; }
-        .slider-container { margin-top: 10px; }
+        
+        /* The Submission Tray */
+        .tray { 
+            padding: 20px; background: white; border-top: 2px solid #ddd; 
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1); display: none; 
+        }
+        .controls { padding: 15px; background: #f4f4f4; border-bottom: 1px solid #ddd; }
+        input, button, textarea { width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #d35400; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .btn-secondary { background: #34495e; }
+        .custom-tooltip { background: #d35400; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div class="controls">
+        <button onclick="toggleTray()">+ Add New Stall Now</button>
+    </div>
+
     <div id="map"></div>
 
-    <div class="controls">
-        <button class="btn-locate" onclick="getLocation()">📍 Find My Location</button>
-        
-        <div>
-            <b>Layers:</b>
-            <input type="checkbox" id="sethlui" checked onchange="updateMarkers()"> SethLui
-            <input type="checkbox" id="tripadvisor" checked onchange="updateMarkers()"> TripAdv
-            <input type="checkbox" id="friends" checked onchange="updateMarkers()"> Friends
+    <div id="submissionTray" class="tray">
+        <h3 style="margin-top:0">New Stall Details</h3>
+        <input type="text" id="stallName" placeholder="Stall Name (e.g. Adam Rd)">
+        <textarea id="stallDesc" placeholder="Description (e.g. Best Sambal)"></textarea>
+        <div style="display:flex; gap:10px;">
+            <input type="number" id="stallLat" placeholder="Latitude" step="any">
+            <input type="number" id="stallLng" placeholder="Longitude" step="any">
         </div>
-        
-        <div class="slider-container">
-            <b>Min Rating: <span id="ratingVal">0</span> ★</b>
-            <input type="range" id="minRating" min="0" max="5" step="0.5" value="0" oninput="updateMarkers()" style="width: 100%;">
-        </div>
+        <button class="btn-secondary" onclick="captureGPS()">📍 Use Current GPS</button>
+        <button onclick="submitToSupabase()">🚀 Submit to Live Map</button>
+        <button class="btn-secondary" onclick="toggleTray()" style="background:#95a5a6">Cancel</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
-        // Start map at Singapore center
+        // --- 1. CONFIGURATION ---
+        const SUPABASE_URL = 'https://jhbnokxiymyakodcqqeq.supabase.co'; 
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpoYm5va3hpeW15YWtvZGNxcWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjI2OTQsImV4cCI6MjA4ODA5ODY5NH0.VjRKwTlXKmcVgHLmmEle0TfpNCTFhb6mkFYOGpsOKQI';  
+
         var map = L.map('map').setView([1.3521, 103.8198], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
         var markerGroup = L.layerGroup().addTo(map);
-        var userLocationMarker = null;
-        let allStalls = [];
 
-        // LOAD DATA (old json method)
-        // fetch('stalls.json')
-        //    .then(res => res.json())
-        //    .then(data => {
-        //       allStalls = data;
-        //        updateMarkers();
-        //    });
-
-        
-        // 1. Supabase Credentials
-        const SUPABASE_URL = 'https://jhbnokxiymyakodcqqeq.supabase.co'
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpoYm5va3hpeW15YWtvZGNxcWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjI2OTQsImV4cCI6MjA4ODA5ODY5NH0.VjRKwTlXKmcVgHLmmEle0TfpNCTFhb6mkFYOGpsOKQI'
-        
-        // 2. Fetch from Cloud instead of Json file
-        async function loadStallsFromSupabase() {
+        // --- 2. LOAD DATA FROM SUPABASE ---
+        async function loadData() {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/stalls?select=*`, {
-                headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
-                }
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
             });
-            const data = await response.json();
-            allStalls = data;
-            updateMarkers();
-}
-
-// Replace your old fetch call with this:
-loadStallsFromSupabase();
-        
-            // GPS FUNCTION
-
-        // 2. AUTOMATIC GPS: Run this as soon as the page opens
-autoLocate();
-
-function autoLocate() {
-    // This is the "watch" method - it updates if the user moves
-    map.locate({
-        setView: true, 
-        maxZoom: 16, 
-        watch: false, // Set to 'true' if you want it to follow you as you walk
-        enableHighAccuracy: true 
-    });
-}
-
-// This function runs automatically when the map "finds" you
-map.on('locationfound', function(e) {
-    if (userLocationMarker) {
-        userLocationMarker.setLatLng(e.latlng);
-    } else {
-        userLocationMarker = L.circleMarker(e.latlng, {
-            radius: 8, color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.9
-        }).addTo(map);
-    }
-});
-
-// Handle errors (like if the user clicks 'Deny')
-map.on('locationerror', function(e) {
-    console.log("Location denied or unavailable. Staying at SG center.");
-});
-
-
-        function updateMarkers() {
+            const stalls = await response.json();
+            
             markerGroup.clearLayers();
-            const minRating = parseFloat(document.getElementById('minRating').value);
-            document.getElementById('ratingVal').innerText = minRating;
-
-            const filters = {
-                sethlui: document.getElementById('sethlui').checked,
-                tripadvisor: document.getElementById('tripadvisor').checked,
-                friends: document.getElementById('friends').checked
-            };
-
-            allStalls.forEach(stall => {
-                let currentMax = 0;
-                let hasActiveSource = false;
-
-                // Check which ratings to consider
-                if (filters.sethlui && stall.sethlui_rating) {
-                    currentMax = Math.max(currentMax, stall.sethlui_rating);
-                    hasActiveSource = true;
-                }
-                if (filters.tripadvisor && stall.tripadvisor_rating) {
-                    currentMax = Math.max(currentMax, stall.tripadvisor_rating);
-                    hasActiveSource = true;
-                }
-                if (filters.friends && stall.social_rating) {
-                    currentMax = Math.max(currentMax, stall.social_rating);
-                    hasActiveSource = true;
-                }
-
-                if (hasActiveSource && currentMax >= minRating) {
-                    var m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
-                    m.bindTooltip(currentMax + " ★", { permanent: true, direction: 'top', className: 'custom-tooltip' });
-                    m.bindPopup(`<b>${stall.name}</b><br>${stall.desc}`);
-                }
+            stalls.forEach(stall => {
+                var m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
+                m.bindPopup(`<b>${stall.name}</b><br>${stall.description}`);
+                m.bindTooltip(stall.name, { permanent: false, className: 'custom-tooltip' });
             });
         }
+
+        // --- 3. SUBMIT DATA TO SUPABASE ---
+        async function submitToSupabase() {
+            const newStall = {
+                name: document.getElementById('stallName').value,
+                description: document.getElementById('stallDesc').value,
+                lat: parseFloat(document.getElementById('stallLat').value),
+                lng: parseFloat(document.getElementById('stallLng').value)
+            };
+
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/stalls`, {
+                method: 'POST',
+                headers: { 
+                    'apikey': SUPABASE_KEY, 
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(newStall)
+            });
+
+            if (response.ok) {
+                alert("Success! Stall added to live database.");
+                toggleTray();
+                loadData(); // Refresh the map instantly
+            } else {
+                alert("Error submitting stall.");
+            }
+        }
+
+        // --- 4. UTILITIES ---
+        function toggleTray() {
+            const tray = document.getElementById('submissionTray');
+            tray.style.display = tray.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function captureGPS() {
+            navigator.geolocation.getCurrentPosition(pos => {
+                document.getElementById('stallLat').value = pos.coords.latitude;
+                document.getElementById('stallLng').value = pos.coords.longitude;
+            });
+        }
+
+        loadData(); // Initial load
     </script>
 </body>
 </html>
