@@ -30,18 +30,64 @@
     <div id="map"></div>
 
     <div id="submissionTray" class="tray">
-        <h3 style="margin-top:0">New Stall Details</h3>
-        <input type="text" id="stallName" placeholder="Stall Name (e.g. Adam Rd)">
-        <textarea id="stallDesc" placeholder="Description (e.g. Best Sambal)"></textarea>
-        <div style="display:flex; gap:10px;">
-            <input type="number" id="stallLat" placeholder="Latitude" step="any">
-            <input type="number" id="stallLng" placeholder="Longitude" step="any">
-        </div>
-        <button class="btn-secondary" onclick="captureGPS()">📍 Use Current GPS</button>
-        <button onclick="submitToSupabase()">🚀 Submit to Live Map</button>
+        <h3 style="margin-top:0">Register New Stall</h3>
+        
+        <p style="font-size: 12px; color: #666;">Step 1: Search for the location</p>
+        <input type="text" id="searchAddress" placeholder="Type Stall Name or Address..." oninput="searchLocation(this.value)">
+        
+        <div id="searchResults" style="background: #eee; max-height: 150px; overflow-y: auto; margin-bottom: 10px; border-radius: 5px;"></div>
+    
+        <p style="font-size: 12px; color: #666;">Step 2: Verify & Name</p>
+        <input type="text" id="stallName" placeholder="Confirmed Name (e.g. 'Auntie's Nasi Lemak')">
+        <textarea id="stallDesc" placeholder="What's good here?"></textarea>
+        
+        <input type="hidden" id="stallLat">
+        <input type="hidden" id="stallLng">
+    
+        <button onclick="submitToSupabase()">🚀 Confirm & Register</button>
         <button class="btn-secondary" onclick="toggleTray()" style="background:#95a5a6">Cancel</button>
     </div>
+    
+    <script>
+    // --- SMART SEARCH LOGIC ---
+    async function searchLocation(query) {
+        if (query.length < 3) return; // Don't search until 3 letters typed
+        
+        const resultsDiv = document.getElementById('searchResults');
+        // Using Photon (OpenStreetMap) - Free and no API key needed for testing
+        const response = await fetch(`https://photon.komoot.io/api/?q=${query}&lat=1.3521&lon=103.8198`);
+        const data = await response.json();
+        
+        resultsDiv.innerHTML = ''; // Clear old results
+        
+        data.features.forEach(feature => {
+            const name = feature.properties.name || '';
+            const street = feature.properties.street || '';
+            const fullAddress = `${name} ${street}`.trim();
+            
+            const div = document.createElement('div');
+            div.style.padding = '10px';
+            div.style.borderBottom = '1px solid #ddd';
+            div.style.cursor = 'pointer';
+            div.innerText = fullAddress;
+            
+            div.onclick = () => {
+                document.getElementById('stallName').value = name;
+                document.getElementById('stallLat').value = feature.geometry.coordinates[1];
+                document.getElementById('stallLng').value = feature.geometry.coordinates[0];
+                document.getElementById('searchAddress').value = fullAddress;
+                resultsDiv.innerHTML = ''; // Hide results
+                alert("Location locked in!");
+            };
+            resultsDiv.appendChild(div);
+        });
+    }
+    </script>
 
+
+
+
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // --- 1. CONFIGURATION ---
