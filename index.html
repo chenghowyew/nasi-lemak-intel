@@ -2,42 +2,45 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nasi Lemak Intel - Pro Mode</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nasi Lemak Intelligence</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f8f9fa; }
         #map { flex-grow: 1; width: 100%; z-index: 1; }
         
-        /* Fixed Controls at Top */
-        .controls { padding: 15px; background: #fff; border-bottom: 2px solid #ddd; z-index: 1000; }
-        .filter-row { margin-top: 10px; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+        /* Top Navigation & Filters */
+        .header-controls { padding: 15px; background: white; border-bottom: 1px solid #dee2e6; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .filter-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; font-size: 14px; }
         
-        /* Sliding Submission Tray */
+        /* Submission Tray */
         .tray { 
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: white; padding: 20px; border-top: 3px solid #d35400;
-            z-index: 2000; box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
-            display: none; max-height: 80vh; overflow-y: auto;
+            position: fixed; bottom: 0; left: 0; right: 0; background: white; 
+            padding: 20px; border-top: 4px solid #d35400; z-index: 2000; 
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.15); display: none; 
+            max-height: 80vh; overflow-y: auto; border-radius: 20px 20px 0 0;
         }
 
-        input, button, textarea { width: 100%; margin-bottom: 8px; padding: 12px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
-        button { background: #d35400; color: white; font-weight: bold; border: none; cursor: pointer; }
-        .btn-cancel { background: #7f8c8d; }
-        .custom-tooltip { background: #d35400; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12px; }
-        #searchResults div { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; background: #fafafa; }
+        input, textarea, button { width: 100%; margin-bottom: 10px; padding: 12px; border-radius: 8px; border: 1px solid #ced4da; box-sizing: border-box; font-size: 16px; }
+        button { background: #d35400; color: white; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        button:disabled { background: #adb5bd; cursor: not-allowed; }
+        .btn-secondary { background: #6c757d; }
+        
+        #searchResults { background: #fff; border-radius: 8px; max-height: 150px; overflow-y: auto; }
+        .search-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; }
+        
+        .flag-btn { background: #e74c3c; padding: 5px 10px; font-size: 12px; margin-top: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <button onclick="toggleTray()">+ Add New Stall</button>
-        
-        <div class="filter-row">
-            <b>Min Rating: <span id="ratingVal">0</span> ★</b>
-            <input type="range" id="minRating" min="0" max="5" step="0.5" value="0" oninput="updateMarkers()" style="width:100%">
+    <div class="header-controls">
+        <button onclick="toggleTray()">+ Add New Nasi Lemak Spot</button>
+        <div class="filter-group">
+            <b>Rating: <span id="ratingVal">0</span>★</b>
+            <input type="range" id="minRating" min="0" max="5" step="0.5" value="0" oninput="updateMarkers()" style="flex-grow:1">
         </div>
-        <div class="filter-row">
+        <div class="filter-group">
             <label><input type="checkbox" id="sethlui" checked onchange="updateMarkers()"> SethLui</label>
             <label><input type="checkbox" id="friends" checked onchange="updateMarkers()"> Community</label>
         </div>
@@ -46,39 +49,40 @@
     <div id="map"></div>
 
     <div id="submissionTray" class="tray">
-        <h3 style="margin:0 0 10px 0;">Register Stall</h3>
-        <p style="font-size:13px; color:#666; margin-bottom:10px;">Search for a location OR tap the map to pin manually.</p>
+        <h3 style="margin:0 0 5px 0">Register Stall</h3>
+        <p id="hintText" style="font-size:13px; color:#d35400; margin-bottom:15px;">Search above or tap map to drop a pin.</p>
         
-        <input type="text" id="searchAddress" placeholder="🔍 Search place/address..." oninput="searchLocation(this.value)">
+        <input type="text" id="searchAddress" placeholder="🔍 Search stall name/place..." oninput="searchLocation(this.value)">
         <div id="searchResults"></div>
 
-        <input type="text" id="stallName" placeholder="Final Stall Name">
-        <textarea id="stallDesc" placeholder="What's the verdict? (e.g. Extra spicy sambal!)"></textarea>
+        <input type="text" id="stallName" placeholder="Stall Name">
+        <textarea id="stallDesc" placeholder="Brief review or specialty..."></textarea>
         
-        <div style="display:flex; gap:10px;">
-            <input type="number" id="stallLat" placeholder="Lat" step="any">
-            <input type="number" id="stallLng" placeholder="Lng" step="any">
+        <div style="background:#f1f3f5; padding:10px; border-radius:8px; margin-bottom:15px; font-size:12px; color:#495057">
+            <b>Target:</b> <span id="coordDisplay">Coordinates not set</span>
         </div>
         
-        <button onclick="submitToSupabase()">🚀 Confirm & Submit</button>
-        <button class="btn-cancel" onclick="toggleTray()">Close</button>
+        <button id="submitBtn" onclick="submitToSupabase()" disabled>🚀 Submit to Live Map</button>
+        <button class="btn-secondary" onclick="toggleTray()">Cancel</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const SUPABASE_URL = 'YOUR_URL';
-        const SUPABASE_KEY = 'YOUR_KEY';
+        // --- CONFIGURATION ---
+        const SUPABASE_URL = 'https://jhbnokxiymyakodcqqeq.supabase.co'; 
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpoYm5va3hpeW15YWtvZGNxcWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjI2OTQsImV4cCI6MjA4ODA5ODY5NH0.VjRKwTlXKmcVgHLmmEle0TfpNCTFhb6mkFYOGpsOKQI';
 
         var map = L.map('map').setView([1.3521, 103.8198], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         var markerGroup = L.layerGroup().addTo(map);
-        var tempMarker = L.marker([0,0]).addTo(map); // For manual pinning
-        tempMarker.setOpacity(0);
+        var activePin = L.marker([0,0], {draggable: true}).addTo(map);
+        activePin.setOpacity(0);
 
         let allStalls = [];
 
-        // 1. DATA LOADING
+        // --- CORE FUNCTIONS ---
+
         async function loadData() {
             const res = await fetch(`${SUPABASE_URL}/rest/v1/stalls?select=*`, {
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -87,7 +91,6 @@
             updateMarkers();
         }
 
-        // 2. FILTERING LOGIC (Restored!)
         function updateMarkers() {
             markerGroup.clearLayers();
             const minRating = parseFloat(document.getElementById('minRating').value);
@@ -97,67 +100,59 @@
             const showFriends = document.getElementById('friends').checked;
 
             allStalls.forEach(stall => {
+                const source = (stall.source || 'friends').toLowerCase();
                 const rating = stall.rating || 0;
-                const source = stall.source || 'friends';
                 
-                let shouldShow = false;
-                if (source === 'sethlui' && showSeth) shouldShow = true;
-                if (source === 'friends' && showFriends) shouldShow = true;
+                let visible = false;
+                if (source === 'sethlui' && showSeth) visible = true;
+                if (source === 'friends' && showFriends) visible = true;
 
-                if (shouldShow && rating >= minRating) {
-                    var m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
-                    m.bindPopup(`<b>${stall.name}</b><br>${stall.description || ''}<br>Rating: ${rating}★`);
-                    if(rating > 0) m.bindTooltip(rating + "★", { permanent: true, className: 'custom-tooltip' });
+                if (visible && rating >= minRating) {
+                    const m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
+                    
+                    // The Flag/Report Button inside the popup
+                    const popupContent = `
+                        <div style="min-width:150px">
+                            <b>${stall.name}</b><br>
+                            ${stall.description || 'No description'}<br>
+                            <small>Source: ${source}</small><br>
+                            <button class="flag-btn" onclick="reportStall(${stall.id})">🚩 Report Issue</button>
+                        </div>
+                    `;
+                    m.bindPopup(popupContent);
                 }
             });
         }
 
-        // 3. MANUAL PINNING CONTINGENCY
+        // --- PINNING & SUBMISSION ---
+
         map.on('click', function(e) {
             if (document.getElementById('submissionTray').style.display === 'block') {
-                const lat = e.latlng.lat;
-                const lng = e.latlng.lng;
-                document.getElementById('stallLat').value = lat.toFixed(6);
-                document.getElementById('stallLng').value = lng.toFixed(6);
-                
-                tempMarker.setLatLng(e.latlng).setOpacity(1).bindPopup("Pin Placed!").openPopup();
-                if(!document.getElementById('stallName').value) {
-                    document.getElementById('stallName').value = "New Stall at " + lat.toFixed(3);
-                }
+                placePin(e.latlng.lat, e.latlng.lng);
             }
         });
 
-        // 4. SEARCH LOGIC
-        async function searchLocation(query) {
-            if (query.length < 3) return;
-            const res = await fetch(`https://photon.komoot.io/api/?q=${query}&lat=1.3521&lon=103.8198`);
-            const data = await res.json();
-            const resultsDiv = document.getElementById('searchResults');
-            resultsDiv.innerHTML = '';
-            
-            data.features.forEach(f => {
-                const div = document.createElement('div');
-                div.innerText = f.properties.name || f.properties.street || "Unknown";
-                div.onclick = () => {
-                    document.getElementById('stallName').value = f.properties.name || "";
-                    document.getElementById('stallLat').value = f.geometry.coordinates[1];
-                    document.getElementById('stallLng').value = f.geometry.coordinates[0];
-                    resultsDiv.innerHTML = '';
-                    map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 16);
-                };
-                resultsDiv.appendChild(div);
-            });
+        activePin.on('dragend', function(e) {
+            const pos = activePin.getLatLng();
+            placePin(pos.lat, pos.lng);
+        });
+
+        function placePin(lat, lng) {
+            activePin.setLatLng([lat, lng]).setOpacity(1);
+            document.getElementById('coordDisplay').innerText = lat.toFixed(5) + ", " + lng.toFixed(5);
+            document.getElementById('hintText').innerText = "📍 Pin set! Drag it to adjust location.";
+            document.getElementById('submitBtn').disabled = false;
         }
 
-        // 5. SUBMISSION
         async function submitToSupabase() {
+            const latlng = activePin.getLatLng();
             const newStall = {
-                name: document.getElementById('stallName').value,
+                name: document.getElementById('stallName').value || "Unnamed Stall",
                 description: document.getElementById('stallDesc').value,
-                lat: parseFloat(document.getElementById('stallLat').value),
-                lng: parseFloat(document.getElementById('stallLng').value),
+                lat: latlng.lat,
+                lng: latlng.lng,
                 source: 'friends',
-                rating: 5 // Default for now
+                rating: 5
             };
 
             const response = await fetch(`${SUPABASE_URL}/rest/v1/stalls`, {
@@ -167,16 +162,59 @@
             });
 
             if (response.ok) {
-                alert("Stall Added!");
+                alert("Stall successfully registered!");
                 toggleTray();
-                tempMarker.setOpacity(0);
                 loadData();
+            }
+        }
+
+        // --- SEARCH ---
+
+        async function searchLocation(q) {
+            if (q.length < 3) return;
+            const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
+            const data = await res.json();
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '';
+            
+            data.features.forEach(f => {
+                const name = f.properties.name || f.properties.street || "Unknown Place";
+                const d = document.createElement('div');
+                d.className = 'search-item';
+                d.innerText = name;
+                d.onclick = () => {
+                    document.getElementById('stallName').value = name;
+                    const coords = f.geometry.coordinates;
+                    placePin(coords[1], coords[0]);
+                    map.setView([coords[1], coords[0]], 17);
+                    resultsDiv.innerHTML = '';
+                };
+                resultsDiv.appendChild(d);
+            });
+        }
+
+        // --- REPORTING ---
+
+        async function reportStall(stallId) {
+            const reason = prompt("Why are you reporting this stall? (e.g., Closed, Wrong Location, Spam)");
+            if (!reason) return;
+
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/reports`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stall_id: stallId, reason: reason })
+            });
+
+            if (response.ok) {
+                alert("Thank you. Our 'Intelligence' team will review this report.");
             }
         }
 
         function toggleTray() {
             const t = document.getElementById('submissionTray');
-            t.style.display = (t.style.display === 'block') ? 'none' : 'block';
+            const isVisible = t.style.display === 'block';
+            t.style.display = isVisible ? 'none' : 'block';
+            if (isVisible) activePin.setOpacity(0);
         }
 
         loadData();
