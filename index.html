@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,27 +10,24 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f8f9fa; }
         #map { flex-grow: 1; width: 100%; z-index: 1; }
         
-        /* Top Navigation & Filters */
         .header-controls { padding: 15px; background: white; border-bottom: 1px solid #dee2e6; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .filter-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; font-size: 14px; }
         
-        /* Submission Tray */
+        /* Submission Tray - Adjusted so it doesn't block the map until needed */
         .tray { 
             position: fixed; bottom: 0; left: 0; right: 0; background: white; 
             padding: 20px; border-top: 4px solid #d35400; z-index: 2000; 
             box-shadow: 0 -5px 25px rgba(0,0,0,0.15); display: none; 
-            max-height: 80vh; overflow-y: auto; border-radius: 20px 20px 0 0;
+            max-height: 50vh; overflow-y: auto; border-radius: 20px 20px 0 0;
         }
 
         input, textarea, button { width: 100%; margin-bottom: 10px; padding: 12px; border-radius: 8px; border: 1px solid #ced4da; box-sizing: border-box; font-size: 16px; }
-        button { background: #d35400; color: white; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        button { background: #d35400; color: white; font-weight: 600; border: none; cursor: pointer; }
         button:disabled { background: #adb5bd; cursor: not-allowed; }
         .btn-secondary { background: #6c757d; }
         
-        #searchResults { background: #fff; border-radius: 8px; max-height: 150px; overflow-y: auto; }
-        .search-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; }
-        
-        .flag-btn { background: #e74c3c; padding: 5px 10px; font-size: 12px; margin-top: 10px; border-radius: 4px; }
+        .search-item { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; background: #fff; }
+        .flag-btn { background: #e74c3c; padding: 6px; font-size: 11px; margin-top: 8px; border-radius: 4px; width: auto; display: inline-block; }
     </style>
 </head>
 <body>
@@ -37,7 +35,7 @@
     <div class="header-controls">
         <button onclick="toggleTray()">+ Add New Nasi Lemak Spot</button>
         <div class="filter-group">
-            <b>Rating: <span id="ratingVal">0</span>★</b>
+            <b>Min Rating: <span id="ratingVal">0</span>★</b>
             <input type="range" id="minRating" min="0" max="5" step="0.5" value="0" oninput="updateMarkers()" style="flex-grow:1">
         </div>
         <div class="filter-group">
@@ -50,39 +48,71 @@
 
     <div id="submissionTray" class="tray">
         <h3 style="margin:0 0 5px 0">Register Stall</h3>
-        <p id="hintText" style="font-size:13px; color:#d35400; margin-bottom:15px;">Search above or tap map to drop a pin.</p>
+        <p id="hintText" style="font-size:13px; color:#d35400; margin-bottom:15px; font-weight:bold;">Tap map to drop pin, then drag to move!</p>
         
         <input type="text" id="searchAddress" placeholder="🔍 Search stall name/place..." oninput="searchLocation(this.value)">
         <div id="searchResults"></div>
 
         <input type="text" id="stallName" placeholder="Stall Name">
-        <textarea id="stallDesc" placeholder="Brief review or specialty..."></textarea>
+        <textarea id="stallDesc" placeholder="Brief review..."></textarea>
         
-        <div style="background:#f1f3f5; padding:10px; border-radius:8px; margin-bottom:15px; font-size:12px; color:#495057">
-            <b>Target:</b> <span id="coordDisplay">Coordinates not set</span>
+        <div style="background:#f1f3f5; padding:10px; border-radius:8px; margin-bottom:15px; font-size:12px;">
+            <b>Location:</b> <span id="coordDisplay">Not set</span>
         </div>
         
-        <button id="submitBtn" onclick="submitToSupabase()" disabled>🚀 Submit to Live Map</button>
+        <button id="submitBtn" onclick="submitToSupabase()" disabled>🚀 Confirm & Submit</button>
         <button class="btn-secondary" onclick="toggleTray()">Cancel</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- CONFIGURATION ---
+        // --- 1. SET UP ---
         const SUPABASE_URL = 'https://jhbnokxiymyakodcqqeq.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpoYm5va3hpeW15YWtvZGNxcWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjI2OTQsImV4cCI6MjA4ODA5ODY5NH0.VjRKwTlXKmcVgHLmmEle0TfpNCTFhb6mkFYOGpsOKQI';
 
-        var map = L.map('map').setView([1.3521, 103.8198], 12);
+        // Initialize Map
+        var map = L.map('map', { tap: false }).setView([1.3521, 103.8198], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         var markerGroup = L.layerGroup().addTo(map);
-        var activePin = L.marker([0,0], {draggable: true}).addTo(map);
-        activePin.setOpacity(0);
+        
+        // This is the Draggable "Submission" Pin
+        var submissionPin = L.marker([0,0], { 
+            draggable: true, 
+            autoPan: true 
+        }).addTo(map);
+        submissionPin.setOpacity(0);
 
         let allStalls = [];
 
-        // --- CORE FUNCTIONS ---
+        // --- 2. DRAGGING LOGIC ---
+        
+        // Update coordinates whenever the pin is moved
+        submissionPin.on('drag', function(e) {
+            updateCoords(e.target.getLatLng());
+        });
 
+        submissionPin.on('dragend', function(e) {
+            updateCoords(e.target.getLatLng());
+            map.panTo(e.target.getLatLng());
+        });
+
+        function updateCoords(latlng) {
+            document.getElementById('coordDisplay').innerText = latlng.lat.toFixed(5) + ", " + latlng.lng.toFixed(5);
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').style.background = "#d35400";
+        }
+
+        // --- 3. MAP CLICK (Drop the pin) ---
+        map.on('click', function(e) {
+            if (document.getElementById('submissionTray').style.display === 'block') {
+                submissionPin.setLatLng(e.latlng).setOpacity(1);
+                updateCoords(e.latlng);
+                document.getElementById('hintText').innerText = "📍 Pin dropped! Drag it to fine-tune.";
+            }
+        });
+
+        // --- 4. SUPABASE DATA ---
         async function loadData() {
             const res = await fetch(`${SUPABASE_URL}/rest/v1/stalls?select=*`, {
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -109,12 +139,9 @@
 
                 if (visible && rating >= minRating) {
                     const m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
-                    
-                    // The Flag/Report Button inside the popup
                     const popupContent = `
-                        <div style="min-width:150px">
-                            <b>${stall.name}</b><br>
-                            ${stall.description || 'No description'}<br>
+                        <div style="min-width:140px">
+                            <b>${stall.name}</b><br>${stall.description || ''}<br>
                             <small>Source: ${source}</small><br>
                             <button class="flag-btn" onclick="reportStall(${stall.id})">🚩 Report Issue</button>
                         </div>
@@ -124,30 +151,35 @@
             });
         }
 
-        // --- PINNING & SUBMISSION ---
-
-        map.on('click', function(e) {
-            if (document.getElementById('submissionTray').style.display === 'block') {
-                placePin(e.latlng.lat, e.latlng.lng);
-            }
-        });
-
-        activePin.on('dragend', function(e) {
-            const pos = activePin.getLatLng();
-            placePin(pos.lat, pos.lng);
-        });
-
-        function placePin(lat, lng) {
-            activePin.setLatLng([lat, lng]).setOpacity(1);
-            document.getElementById('coordDisplay').innerText = lat.toFixed(5) + ", " + lng.toFixed(5);
-            document.getElementById('hintText').innerText = "📍 Pin set! Drag it to adjust location.";
-            document.getElementById('submitBtn').disabled = false;
+        // --- 5. SEARCH & SUBMISSION ---
+        async function searchLocation(q) {
+            if (q.length < 3) return;
+            const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
+            const data = await res.json();
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '';
+            
+            data.features.forEach(f => {
+                const name = f.properties.name || f.properties.street || "Unknown";
+                const d = document.createElement('div');
+                d.className = 'search-item';
+                d.innerText = name;
+                d.onclick = () => {
+                    document.getElementById('stallName').value = name;
+                    const c = f.geometry.coordinates;
+                    submissionPin.setLatLng([c[1], c[0]]).setOpacity(1);
+                    updateCoords({lat: c[1], lng: c[0]});
+                    map.setView([c[1], c[0]], 17);
+                    resultsDiv.innerHTML = '';
+                };
+                resultsDiv.appendChild(d);
+            });
         }
 
         async function submitToSupabase() {
-            const latlng = activePin.getLatLng();
-            const newStall = {
-                name: document.getElementById('stallName').value || "Unnamed Stall",
+            const latlng = submissionPin.getLatLng();
+            const payload = {
+                name: document.getElementById('stallName').value || "New Stall",
                 description: document.getElementById('stallDesc').value,
                 lat: latlng.lat,
                 lng: latlng.lng,
@@ -158,63 +190,32 @@
             const response = await fetch(`${SUPABASE_URL}/rest/v1/stalls`, {
                 method: 'POST',
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(newStall)
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {
-                alert("Stall successfully registered!");
+                alert("Success! Check the map.");
                 toggleTray();
                 loadData();
             }
         }
 
-        // --- SEARCH ---
-
-        async function searchLocation(q) {
-            if (q.length < 3) return;
-            const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
-            const data = await res.json();
-            const resultsDiv = document.getElementById('searchResults');
-            resultsDiv.innerHTML = '';
-            
-            data.features.forEach(f => {
-                const name = f.properties.name || f.properties.street || "Unknown Place";
-                const d = document.createElement('div');
-                d.className = 'search-item';
-                d.innerText = name;
-                d.onclick = () => {
-                    document.getElementById('stallName').value = name;
-                    const coords = f.geometry.coordinates;
-                    placePin(coords[1], coords[0]);
-                    map.setView([coords[1], coords[0]], 17);
-                    resultsDiv.innerHTML = '';
-                };
-                resultsDiv.appendChild(d);
-            });
-        }
-
-        // --- REPORTING ---
-
-        async function reportStall(stallId) {
-            const reason = prompt("Why are you reporting this stall? (e.g., Closed, Wrong Location, Spam)");
+        async function reportStall(id) {
+            const reason = prompt("What's wrong with this stall?");
             if (!reason) return;
-
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/reports`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/reports`, {
                 method: 'POST',
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stall_id: stallId, reason: reason })
+                body: JSON.stringify({ stall_id: id, reason: reason })
             });
-
-            if (response.ok) {
-                alert("Thank you. Our 'Intelligence' team will review this report.");
-            }
+            alert("Report sent.");
         }
 
         function toggleTray() {
             const t = document.getElementById('submissionTray');
             const isVisible = t.style.display === 'block';
             t.style.display = isVisible ? 'none' : 'block';
-            if (isVisible) activePin.setOpacity(0);
+            if (isVisible) submissionPin.setOpacity(0);
         }
 
         loadData();
