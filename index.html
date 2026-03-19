@@ -124,45 +124,42 @@
             updateMarkers();
         }
 
+       // --- UPDATED FILTER LOGIC (Strict Math) ---
         function updateMarkers() {
             markerGroup.clearLayers();
-            const minRating = parseFloat(document.getElementById('minRating').value);
-            document.getElementById('ratingVal').innerText = minRating;
-
-            const showSeth = document.getElementById('sethlui').checked;
-            const showFriends = document.getElementById('friends').checked;
-
-            allStalls.forEach(stall => {
-                // 1. Force lowercase so 'SethLui', 'sethlui', and 'SETHLUI' all work
-            const source = (stall.source || 'friends').toLowerCase();
             
-            // 2. Ensure rating is treated as a number
-            const rating = parseFloat(stall.rating) || 0;
-            
-            const showSeth = document.getElementById('sethlui').checked;
-            const showFriends = document.getElementById('friends').checked;
-            const minRating = parseFloat(document.getElementById('minRating').value);
+            // Get the value from the slider and force it to be a number
+            const minRatingThreshold = parseFloat(document.getElementById('minRating').value);
+            document.getElementById('ratingVal').innerText = minRatingThreshold;
         
-            let visible = false;
-            if (source === 'sethlui' && showSeth) visible = true;
-            if (source === 'friends' && showFriends) visible = true;
-            if (source === 'tripadvisor' && showSeth) visible = true; // Temporary: Grouping travel sites under SethLui
-
-                if (visible && rating >= minRating) {
+            const showSeth = document.getElementById('sethlui').checked;
+            const showFriends = document.getElementById('friends').checked;
+        
+            allStalls.forEach(stall => {
+                const source = (stall.source || 'friends').toLowerCase();
+                
+                // CRITICAL: Ensure the stall rating from the DB is treated as a number
+                const stallRating = parseFloat(stall.rating) || 0;
+                
+                let matchesSource = false;
+                if (source === 'sethlui' && showSeth) matchesSource = true;
+                if (source === 'friends' && showFriends) matchesSource = true;
+                if (source === 'tripadvisor' && showSeth) matchesSource = true;
+        
+                // The Filter: Only show if it matches the source AND is >= the slider value
+                if (matchesSource && stallRating >= minRatingThreshold) {
                     const m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
-                    const popupContent = `
-                        <div style="min-width:140px">
-                            <b>${stall.name}</b><br>${stall.description || ''}<br>
-                            <small>Source: ${source}</small><br>
-                            <button class="flag-btn" onclick="reportStall(${stall.id})">🚩 Report Issue</button>
-                        </div>
-                    `;
-                    m.bindPopup(popupContent);
+                    m.bindPopup(`
+                        <b>${stall.name}</b><br>
+                        Rating: ${stallRating} ★<br>
+                        <button class="flag-btn" onclick="reportStall(${stall.id})">🚩 Report</button>
+                    `);
                 }
             });
         }
 
         // --- 5. SEARCH & SUBMISSION ---
+       // --- UPDATED SEARCH LOGIC (With Auto-Center) ---
         async function searchLocation(q) {
             if (q.length < 3) return;
             const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
@@ -171,17 +168,25 @@
             resultsDiv.innerHTML = '';
             
             data.features.forEach(f => {
-                const name = f.properties.name || f.properties.street || "Unknown";
+                const name = f.properties.name || f.properties.street || "Unknown Place";
                 const d = document.createElement('div');
                 d.className = 'search-item';
                 d.innerText = name;
                 d.onclick = () => {
+                    const [lng, lat] = f.geometry.coordinates;
+                    
+                    // 1. Place the pin
+                    submissionPin.setLatLng([lat, lng]).setOpacity(1);
                     document.getElementById('stallName').value = name;
-                    const c = f.geometry.coordinates;
-                    submissionPin.setLatLng([c[1], c[0]]).setOpacity(1);
-                    updateCoords({lat: c[1], lng: c[0]});
-                    map.setView([c[1], c[0]], 17);
+                    updateCoords({lat, lng});
+                    
+                    // 2. Clear results
                     resultsDiv.innerHTML = '';
+                    
+                    // 3. CENTER THE MAP 
+                    // We use flyTo for a smooth transition. 
+                    // We pan slightly 'south' (subtracting 0.005) so the pin isn't under the UI tray.
+                    map.flyTo([lat - 0.002, lng], 17); 
                 };
                 resultsDiv.appendChild(d);
             });
