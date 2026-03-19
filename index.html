@@ -160,37 +160,40 @@
 
         // --- 5. SEARCH & SUBMISSION ---
        // --- UPDATED SEARCH LOGIC (With Auto-Center) ---
-        async function searchLocation(q) {
-            if (q.length < 3) return;
-            const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
-            const data = await res.json();
-            const resultsDiv = document.getElementById('searchResults');
-            resultsDiv.innerHTML = '';
+            async function searchLocation(q) {
+                if (q.length < 3) return;
+                const res = await fetch(`https://photon.komoot.io/api/?q=${q}&lat=1.3521&lon=103.8198`);
+                const data = await res.json();
+                const resultsDiv = document.getElementById('searchResults');
+                resultsDiv.innerHTML = '';
+                
+                data.features.forEach(f => {
+                    const p = f.properties;
+                    
+                    // Build a smarter label: "Name (Street/District)"
+                    // e.g., "Shake Shack (Jewel Changi Airport)" or "Shake Shack (89 Neil Rd)"
+                    let locationDetail = p.street || p.district || p.city || "";
+                    let displayName = p.name || "Unknown Place";
+                    
+                    if (locationDetail && !displayName.includes(locationDetail)) {
+                        displayName += ` (${locationDetail})`;
+                    }
             
-            data.features.forEach(f => {
-                const name = f.properties.name || f.properties.street || "Unknown Place";
-                const d = document.createElement('div');
-                d.className = 'search-item';
-                d.innerText = name;
-                d.onclick = () => {
-                    const [lng, lat] = f.geometry.coordinates;
+                    const d = document.createElement('div');
+                    d.className = 'search-item';
+                    d.innerText = displayName;
                     
-                    // 1. Place the pin
-                    submissionPin.setLatLng([lat, lng]).setOpacity(1);
-                    document.getElementById('stallName').value = name;
-                    updateCoords({lat, lng});
-                    
-                    // 2. Clear results
-                    resultsDiv.innerHTML = '';
-                    
-                    // 3. CENTER THE MAP 
-                    // We use flyTo for a smooth transition. 
-                    // We pan slightly 'south' (subtracting 0.005) so the pin isn't under the UI tray.
-                    map.flyTo([lat - 0.002, lng], 17); 
-                };
-                resultsDiv.appendChild(d);
-            });
-        }
+                    d.onclick = () => {
+                        const [lng, lat] = f.geometry.coordinates;
+                        document.getElementById('stallName').value = displayName;
+                        submissionPin.setLatLng([lat, lng]).setOpacity(1);
+                        updateCoords({lat, lng});
+                        resultsDiv.innerHTML = '';
+                        map.flyTo([lat - 0.002, lng], 17);
+                    };
+                    resultsDiv.appendChild(d);
+                });
+            }
 
         async function submitToSupabase() {
             const latlng = submissionPin.getLatLng();
