@@ -133,12 +133,20 @@
             const showFriends = document.getElementById('friends').checked;
 
             allStalls.forEach(stall => {
-                const source = (stall.source || 'friends').toLowerCase();
-                const rating = stall.rating || 0;
-                
-                let visible = false;
-                if (source === 'sethlui' && showSeth) visible = true;
-                if (source === 'friends' && showFriends) visible = true;
+                // 1. Force lowercase so 'SethLui', 'sethlui', and 'SETHLUI' all work
+            const source = (stall.source || 'friends').toLowerCase();
+            
+            // 2. Ensure rating is treated as a number
+            const rating = parseFloat(stall.rating) || 0;
+            
+            const showSeth = document.getElementById('sethlui').checked;
+            const showFriends = document.getElementById('friends').checked;
+            const minRating = parseFloat(document.getElementById('minRating').value);
+        
+            let visible = false;
+            if (source === 'sethlui' && showSeth) visible = true;
+            if (source === 'friends' && showFriends) visible = true;
+            if (source === 'tripadvisor' && showSeth) visible = true; // Temporary: Grouping travel sites under SethLui
 
                 if (visible && rating >= minRating) {
                     const m = L.marker([stall.lat, stall.lng]).addTo(markerGroup);
