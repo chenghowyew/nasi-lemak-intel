@@ -32,26 +32,40 @@
         const SUPABASE_KEY = 'YOUR_KEY';
 
         async function fetchReports() {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/reports?select=*`, {
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-            });
-            const reports = await res.json();
-            const tbody = document.querySelector('#reportTable tbody');
-            tbody.innerHTML = '';
-            document.getElementById('stats').innerText = `Total Active Reports: ${reports.length}`;
+            try {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/reports?select=*`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+        
+                if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
+        
+                const reports = await res.json();
+                const tbody = document.querySelector('#reportTable tbody');
+                tbody.innerHTML = '';
+        
+                if (reports.length === 0) {
+                    document.getElementById('stats').innerText = "No active reports. The map is clean!";
+                    return;
+                }
 
-            reports.forEach(r => {
-                const row = `<tr>
-                    <td>${r.stall_id}</td>
-                    <td>${r.reason}</td>
-                    <td>${new Date(r.created_at).toLocaleDateString()}</td>
-                    <td>
-                        <button class="btn-dismiss" onclick="dismissReport(${r.id})">Dismiss</button>
-                        <button class="btn-delete" onclick="deleteStall(${r.stall_id}, ${r.id})">Delete Stall</button>
-                    </td>
-                </tr>`;
-                tbody.innerHTML += row;
-            });
+                document.getElementById('stats').innerText = `Total Active Reports: ${reports.length}`;
+
+                reports.forEach(r => {
+                    const row = `<tr>
+                        <td>${r.stall_id}</td>
+                        <td>${r.reason}</td>
+                        <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn-dismiss" onclick="dismissReport(${r.id})">Dismiss</button>
+                            <button class="btn-delete" onclick="deleteStall(${r.stall_id}, ${r.id})">Delete Stall</button>
+                        </td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                   });
+            } catch (err) {
+                console.error(err);
+                document.getElementById('stats').innerText = "Error: " + err.message;
+            }
         }
 
         async function dismissReport(reportId) {
