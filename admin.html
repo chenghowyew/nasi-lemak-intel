@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nasi Lemak Intel - Admin</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #d35400; color: white; }
+        .btn-delete { background: #e74c3c; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 4px; }
+        .btn-dismiss { background: #3498db; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 4px; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h2>Moderation Dashboard</h2>
+    <div id="stats">Loading reports...</div>
+    <br>
+    <table id="reportTable">
+        <thead>
+            <tr>
+                <th>Stall ID</th>
+                <th>Reason</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const SUPABASE_URL = 'YOUR_URL';
+        const SUPABASE_KEY = 'YOUR_KEY';
+
+        async function fetchReports() {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/reports?select=*`, {
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+            });
+            const reports = await res.json();
+            const tbody = document.querySelector('#reportTable tbody');
+            tbody.innerHTML = '';
+            document.getElementById('stats').innerText = `Total Active Reports: ${reports.length}`;
+
+            reports.forEach(r => {
+                const row = `<tr>
+                    <td>${r.stall_id}</td>
+                    <td>${r.reason}</td>
+                    <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-dismiss" onclick="dismissReport(${r.id})">Dismiss</button>
+                        <button class="btn-delete" onclick="deleteStall(${r.stall_id}, ${r.id})">Delete Stall</button>
+                    </td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        async function dismissReport(reportId) {
+            await fetch(`${SUPABASE_URL}/rest/v1/reports?id=eq.${reportId}`, {
+                method: 'DELETE',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+            });
+            fetchReports();
+        }
+
+        async function deleteStall(stallId, reportId) {
+            if (!confirm("Are you sure you want to permanently remove this stall?")) return;
+            
+            // 1. Delete the stall
+            await fetch(`${SUPABASE_URL}/rest/v1/stalls?id=eq.${stallId}`, {
+                method: 'DELETE',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+            });
+
+            // 2. Delete the report
+            dismissReport(reportId);
+        }
+
+        fetchReports();
+    </script>
+</body>
+</html>
